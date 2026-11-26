@@ -373,6 +373,31 @@
     box.addEventListener('mouseenter', () => clearTimeout(closeT)); box.addEventListener('mouseleave', close);
   }
 
+  /* ------------------------------------------------- reviews: auto-moving strip */
+  // The patient stories strip glides right to left on its own, endlessly (asked for 26 Nov), and pauses under the pointer.
+  // Driven by the Web Animations API so recorded hover states that rewrite inline styles can't stop it.
+  function storyStrip() {
+    $$('[role="region"][aria-label="Patient stories"]').forEach(reg => {
+      const track = reg.firstElementChild; if (!track || track._snStrip) return; track._snStrip = 1;
+      const start = () => {
+        if (!reg.offsetWidth) return setTimeout(start, 500);
+        const groups = [...track.children]; if (!groups.length) return;
+        const gap = parseFloat(getComputedStyle(track).columnGap) || 16;
+        const w = groups[0].getBoundingClientRect().width + gap; if (w < 50) return setTimeout(start, 500);
+        // enough copies to always cover the screen while one set slides out
+        while (track.scrollWidth < reg.clientWidth + w * 2) { const c = groups[0].cloneNode(true); c.setAttribute('aria-hidden', 'true'); track.appendChild(c); }
+        if (track._snAnim) track._snAnim.cancel();
+        track._snAnim = track.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${-w}px)` }],
+          { duration: w / 45 * 1000, iterations: Infinity, easing: 'linear' });
+        if (reduce) track._snAnim.pause();
+      };
+      start();
+      reg.addEventListener('mouseenter', () => track._snAnim && track._snAnim.pause());
+      reg.addEventListener('mouseleave', () => track._snAnim && !reduce && track._snAnim.play());
+      let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); setTimeout(start, 200); } });
+    });
+  }
+
   /* ------------------------------------------------------------------ tickers */
   function tickers() {
     $$('section[style*="mask-image"] > ul, section[style*="overflow:hidden"] > ul').forEach(ul => {
@@ -544,7 +569,7 @@
         const chain = [];
         for (let a = c.parentElement, i = 0; a && i < 6; a = a.parentElement, i++) {
           const s = getComputedStyle(a); const b = a.getBoundingClientRect();
-          if (b.width >= vw * .85) break;
+          if (b.width >= vw * .97) break;
           if (s.overflowX !== 'visible' && (t.right > b.right + 1 || t.left < b.left - 1)) {
             if (key(c)) wrap.add(key(c));
             chain.forEach(x => key(x) && shrink.add(key(x)));    // the boxes between the text and its card shrink to the card
@@ -558,7 +583,7 @@
       $$('[class*="framer-"]').forEach(r => {
         if (!r.offsetWidth || r.closest('[aria-label="Patient stories"],[role="slider"],[data-framer-name*="Ticker"],nav')) return;
         const s = getComputedStyle(r); if (s.display !== 'flex' || !s.flexDirection.startsWith('row') || s.flexWrap !== 'nowrap') return;
-        const b = r.getBoundingClientRect(); if (b.width >= vw * .85 || b.height > 80) return;
+        const b = r.getBoundingClientRect(); if (b.width >= vw * .97 || b.height > 80) return;
         const kids = [...r.children].filter(k => k.getBoundingClientRect().width); if (kids.length < 2) return;
         if (kids.some(k => k.getBoundingClientRect().height > 80)) return;
         if (kids.some(k => k.getAttribute('data-framer-component-type') === 'RichTextContainer')) return;   // icon + text rows wrap their text instead
@@ -620,7 +645,7 @@
   function init() {
     document.documentElement.style.setProperty('--sn-d', TRANS.dur + 'ms'); document.documentElement.style.setProperty('--sn-e', TRANS.easing);
     window.__snErr = [];
-    [appear, reveals, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, tickers, slideshows, counters, video, forms, anchors]
+    [appear, reveals, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors]
       .forEach(f => { try { f(); } catch (e) { window.__snErr.push((f.name || 'step') + ': ' + e.message); console.error(e); } });
     let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); $$('[class*="framer-v-"]').forEach(e => e._snH = 0); bindStates(document.body); } });
   }
