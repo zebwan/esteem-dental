@@ -1,0 +1,10 @@
+/* our runtime's own styles */
+.sn-tr, .sn-tr * {
+  transition-property: background-color, color, border-color, opacity, transform, box-shadow, fill, stroke, width, height, top, left, right, bottom, border-radius;
+  transition-duration: var(--sn-d, 400ms);
+  transition-timing-function: var(--sn-e, cubic-bezier(.3,1.2,.5,1));
+}
+.sn-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.8); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .3s ease; }
+.sn-overlay.is-on { opacity: 1; }
+.sn-overlay__box { width: min(1008px, 90vw); aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+.sn-overlay__box iframe, .sn-overlay__box video { width: 100%; height: 100%; border: 0; display: block; }

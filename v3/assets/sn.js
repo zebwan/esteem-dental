@@ -848,6 +848,26 @@
       target.style.display = 'none'; }, { once: true });
   }
 
+
+  // Phones and tablets: the template only stacks its service cards on desktop. Asked for the scroll effects on mobile too
+  // (26 Nov): the six service cards stack as you scroll (the facility photos sit in two separate rows, so they keep their fade-up). A card taller than the screen sticks
+  // only once its bottom is in view, so nothing on it is hidden; each sits a little above the next so an edge shows.
+  function stackMobile() {
+    const groups = [
+      $$('[data-framer-name^="Service Card "]'),
+    ].map(g => g.filter(e => !g.some(o => o !== e && o.contains(e))));   // the outer box of each card only
+    const run = () => groups.forEach(all => {
+      const cards = all.filter(vis);
+      if (innerWidth >= 1200 || cards.length < 2) { cards.forEach(c => { if (c._snStk) { c.style.position = ''; c.style.top = ''; c.style.zIndex = ''; c.style.boxShadow = ''; c._snStk = 0; } }); return; }
+      const base = 76;
+      const t = cards.map((c, i) => Math.min(base + i * 10, innerHeight - c.offsetHeight - 16));
+      for (let i = t.length - 2; i >= 0; i--) t[i] = Math.min(t[i], t[i + 1] - 8);
+      cards.forEach((c, i) => { c._snStk = 1; c.style.position = 'sticky'; c.style.top = t[i] + 'px'; c.style.zIndex = i + 1;
+        c.style.boxShadow = '0 -14px 40px -18px rgba(74, 51, 41, .28)'; });
+    });
+    run(); addEventListener('resize', run); if (document.fonts) document.fonts.ready.then(run); setTimeout(run, 1200);
+  }
+
   /* ---------------------------------------------------------------------- go */
   /* ------------------------------------------------ v2 scroll motion (added 26 Nov) */
   // The Elqoriva template only fades blocks up. Asked for more life on scroll: headings rise in word by word, figures
@@ -922,7 +942,7 @@
   function init() {
     document.documentElement.style.setProperty('--sn-d', TRANS.dur + 'ms'); document.documentElement.style.setProperty('--sn-e', TRANS.easing);
     window.__snErr = [];
-    [appear, reveals, revealsFallback, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors, reel, toc, showMore]
+    [appear, reveals, revealsFallback, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors, reel, toc, showMore, stackMobile]
       .forEach(f => { try { f(); } catch (e) { window.__snErr.push((f.name || 'step') + ': ' + e.message); console.error(e); } });
     let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); $$('[class*="framer-v-"]').forEach(e => e._snH = 0); bindStates(document.body); } });
   }

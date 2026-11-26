@@ -101,14 +101,15 @@
           const need = Math.min(thr, (innerHeight / Math.max(1, r.height)) * 0.99);
           const inView = e.isIntersecting && e.intersectionRatio >= need - 0.001;
           if (inView && !shown) { shown = true; play(el, enter, { opacity: 1 }, t); if (once) io.disconnect(); }
-          else if (!e.isIntersecting && shown && !once) { shown = false; const ex = exit || enter; play(el, { opacity: 1 }, ex, ex.transition || t); }
+          else if (!e.isIntersecting && shown && !once && e.boundingClientRect.top > 0) { /* replays when scrolled back above it (as live) */ shown = false; const ex = exit || enter; play(el, { opacity: 1 }, ex, ex.transition || t); }
         }), { threshold: [0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] });
         // an element that starts offset inside a box that clips (stat labels under the numbers) never intersects on its own:
         // watch the nearest small clipping box instead, which is where it becomes visible
         let tgt = el;
         for (let a = el.parentElement, i = 0; a && i < 3; a = a.parentElement, i++) {
           const s = getComputedStyle(a);
-          if (s.overflowY === 'visible') continue;
+          if (s.overflowY === 'visible' || s.display === 'contents') continue;
+          if (a.getBoundingClientRect().height < 2) continue;   // zero-height wrappers (Healcure's page shell) clip nothing visible
           const c = a.getBoundingClientRect(), r = el.getBoundingClientRect();
           if (c.height < innerHeight && (r.top >= c.bottom - 1 || r.bottom <= c.top + 1)) tgt = a;
           break;
@@ -117,6 +118,23 @@
       });
     });
   }
+  // elements a shared component fades in (Healcure's footer) are not in the page modules' data: any block the server
+  // left at opacity 0 with an offset gets the same fade-up when it scrolls into view
+  function revealsFallback() {
+    $$('[style*="opacity:0"][style*="transform"], [style*="opacity: 0"][style*="transform"]').forEach(el => {
+      if (el.dataset.snRev || el.closest('[data-framer-component-type="RichTextContainer"]') || parseFloat(el.style.opacity) > 0.05) return;
+      if (!/translate|scale/.test(el.style.transform) || el.closest('[aria-hidden="true"]')) return;
+      el.dataset.snRev = 1;
+      const io = new IntersectionObserver(es => { if (!es.some(e => e.isIntersecting)) return; io.disconnect();
+        const from = { opacity: 0, transform: el.style.transform };
+        if (reduce) { el.style.opacity = 1; el.style.transform = 'none'; return; }
+        const an = el.animate([from, { opacity: 1, transform: 'none' }], { duration: 900, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' });
+        an.onfinish = () => { el.style.opacity = 1; el.style.transform = 'none'; an.cancel(); };
+      }, { threshold: 0.05 });
+      io.observe(el);
+    });
+  }
+
 
   /* ---------------------------------------------- scroll-linked transforms */
   const docTop = e => { let y = 0; while (e) { y += e.offsetTop; e = e.offsetParent; } return y; };
@@ -269,7 +287,7 @@
     // nav look by scroll
     const navs = st.scroll || [];
     if (navs.length) {
-      const on = () => navs.forEach(n => { const e = find(n.a); if (!e) return; const want = scrollY > 50 ? 'scrolled' : 'top'; if (e._snScroll !== want && !e._snState) { e._snScroll = want; morph(e, n[want]); } });
+      const on = () => navs.forEach(n => { const e = find(n.a); if (!e) return; const want = scrollY > (n.at || 50) ? 'scrolled' : 'top'; if (e._snScroll !== want && !e._snState) { e._snScroll = want; morph(e, n[want]); } });
       addEventListener('scroll', on, { passive: true }); on();
     }
   }
@@ -414,26 +432,24 @@
   }
 
   function textFx() {
-    const chars = $$('span[style*="inline-block"][style*="filter"]').filter(s => /blur/.test(s.style.filter) && parseFloat(s.style.opacity) < 0.05);
+    // Healcure: the hero heading appears word by word (blur 7px, y 10), its subheading letter by letter (y 7, no blur)
+    const toks = $$('span[style*="inline-block"]').filter(s => parseFloat(s.style.opacity) < 0.05 && s.closest('[data-framer-component-type="RichTextContainer"]'));
     const groups = new Map();
-    chars.forEach(s => { const c = s.closest('[data-framer-component-type="RichTextContainer"]') || s.parentElement; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(s); });
+    toks.forEach(s => { const c = s.closest('[data-framer-component-type="RichTextContainer"]'); if (!groups.has(c)) groups.set(c, []); groups.get(c).push(s); });
     let mountIdx = 0;
-    const ease = 'cubic-bezier(.65,0,.35,1)';
     groups.forEach((spans, box) => {
-      const y = parseFloat((spans[0].style.transform.match(/translateY\(([-\d.]+)px\)/) || [0, 24])[1]);
-      const mount = y >= 40;
-      const dur = mount ? 880 : 720;
-      const start = mount ? 150 + 100 * (mountIdx++) : 0;
-      const run = () => {
-        const lines = []; let lastTop = null;
-        spans.forEach(s => { const t = Math.round(s.getBoundingClientRect().top); if (lastTop === null || Math.abs(t - lastTop) > 4) { lines.push([]); lastTop = t; } lines[lines.length - 1].push(s); });
-        lines.forEach((line, i) => line.forEach(s => {
-          if (reduce) { s.style.opacity = 1; s.style.filter = 'none'; s.style.transform = 'none'; return; }
-          const a = s.animate([{ opacity: 0.001, filter: 'blur(8px)', transform: `translateY(${y}px)` }, { opacity: 1, filter: 'blur(0px)', transform: 'none' }],
-            { duration: dur, easing: ease, delay: start + i * 50, fill: 'both' });
-          a.onfinish = () => { s.style.opacity = 1; s.style.filter = 'none'; s.style.transform = 'none'; a.cancel(); };
-        }));
-      };
+      const y = parseFloat((spans[0].style.transform.match(/translateY\(([-\d.]+)px\)/) || [0, 10])[1]);
+      const blur = (spans[0].style.filter.match(/blur\(([\d.]+)px\)/) || [0, 0])[1];
+      const chars = spans.length > 1 && spans.every(s => s.textContent.length <= 1);
+      const mount = box.getBoundingClientRect().top < innerHeight;
+      const start = mount ? 200 + 250 * (mountIdx++) : 0;
+      const run = () => spans.forEach((s, i) => {
+        if (reduce) { s.style.opacity = 1; s.style.filter = 'none'; s.style.transform = 'none'; return; }
+        const from = { opacity: 0.001, transform: `translateY(${y}px)` }; if (+blur) from.filter = `blur(${blur}px)`;
+        const to = { opacity: 1, transform: 'none' }; if (+blur) to.filter = 'blur(0px)';
+        const a = s.animate([from, to], { duration: chars ? 500 : 800, easing: 'cubic-bezier(.22,1,.36,1)', delay: start + i * (chars ? 8 : 70), fill: 'both' });
+        a.onfinish = () => { s.style.opacity = 1; s.style.filter = 'none'; s.style.transform = 'none'; a.cancel(); };
+      });
       if (mount) { (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(run); }
       else { const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); run(); } }, { threshold: 0.1 }); io.observe(box); }
     });
@@ -481,7 +497,8 @@
 
   /* ------------------------------------------------------------------ tickers */
   function tickers() {
-    $$('section[style*="mask-image"] > ul, section[style*="overflow:hidden"] > ul').forEach(ul => {
+    $$('section[style*="mask-image"] > ul, section[style*="overflow:hidden"] > ul, ul[role="group"]:has(> li.ticker-item)').forEach(ul => {
+      if (ul._snTick) return; ul._snTick = 1;
       const sec = ul.parentElement; if (sec.closest('.framer-slideshow')) return;
       const cfg = (D.tickers || []).find(t => ul.closest('.' + t.container)) || { speed: 50, hover: null };
       sec.style.opacity = 1;
@@ -577,7 +594,13 @@
       day: ['Any day', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
       time: ['Any time', 'Morning (9am–1pm)', 'Afternoon (2pm–5pm)'],
     };
-    const LABEL = { name: 'Name', phone: 'Phone', email: 'Email', treatment: 'Treatment', day: 'Preferred day', time: 'Preferred time', message: 'Message' };
+    // v2 (Elqoriva) field names: full_name, email, phone, service, preferred_date, subject, message; the hidden honeypots reuse some names
+    const LABEL = { Name: 'Name', full_name: 'Name', name: 'Name', 'Phone Number': 'Phone', Email: 'Email', Message: 'Message', phone: 'Phone', email: 'Email', service: 'Treatment', subject: 'Treatment', treatment: 'Treatment',
+                    preferred_date: 'Preferred date', day: 'Preferred day', time: 'Preferred time', message: 'Message' };
+    const nice = (k, v) => { if (k !== 'preferred_date' || !/^\d{4}-\d\d-\d\d$/.test(v)) return v;
+      return new Date(v + 'T00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); };
+    const today = new Date(); const iso = new Date(today - today.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    $$('input[type=date]').forEach(d => { if (!d.min) d.min = iso; });
     $$('form').forEach(f => {
       if (f._snForm) return; f._snForm = 1;
       // the template's dropdowns are buttons over a hidden input: lay a real <select> over each, same look
@@ -609,8 +632,10 @@
       f.addEventListener('submit', e => {
         e.preventDefault();
         if (f.reportValidity && !f.reportValidity()) return;
-        const data = new FormData(f); const lines = ['Hi Esteem Dental Clinic, I would like to arrange a visit.', ''];
-        for (const [k, label] of Object.entries(LABEL)) { const val = (data.get(k) || '').toString().trim(); if (val) lines.push(label + ': ' + val); }
+        const lines = ['Hi Esteem Dental Clinic, I would like to arrange a visit.', ''], seen = new Set();
+        for (const [k, label] of Object.entries(LABEL)) {
+          const val = $$('[name="' + k + '"]', f).filter(el => el.getAttribute('aria-hidden') !== 'true').map(el => (el.tagName === 'SELECT' ? (el.value && el.selectedOptions[0] ? el.selectedOptions[0].text : '') : el.value || '').trim()).find(Boolean);
+          if (val && !seen.has(label)) { seen.add(label); lines.push(label + ': ' + nice(k, val)); } }
         const url = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(lines.join('\n'));
         const win = window.open(url, '_blank', 'noopener');
         if (!win) location.href = url;
@@ -765,11 +790,159 @@
     let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); setTimeout(run, 100); } });
   }
 
+
+  /* ------------------------------------------------------------- v3 (Healcure) components */
+  // About reel: three clinic photos cycle like the template's video reel (5 s each, progress bars, thumbnails, pause)
+  function reel() {
+    $$('img.es-reel').map(i => i.parentElement).filter((v, i, a) => a.indexOf(v) === i).forEach(box => {
+      const slides = $$(':scope > img.es-reel', box); if (slides.length < 2) return;
+      const btn = box.querySelector('button[aria-label]'); const thumbs = btn ? [...btn.nextElementSibling.children] : [];
+      const bars = [...(box.lastElementChild ? box.lastElementChild.children : [])].map(b => b.firstElementChild).filter(Boolean);
+      const DUR = 5000; let cur = 0, t0 = performance.now(), paused = false, pausedAt = 0;
+      const show = i => { cur = i; t0 = performance.now(); slides.forEach((s, k) => { s.style.opacity = k === i ? 1 : 0; });
+        thumbs.forEach((t, k) => t.style.border = k === i ? '2px solid #fff' : 'none'); bars.forEach((b, k) => { b.style.transition = 'none'; b.style.width = k < i ? '100%' : '0%'; }); };
+      thumbs.forEach((t, k) => t.addEventListener('click', () => show(k)));
+      if (btn) { const play = btn.innerHTML; btn.addEventListener('click', () => { paused = !paused;
+        if (paused) { pausedAt = performance.now(); btn.setAttribute('aria-label', 'Play'); btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>'; }
+        else { t0 += performance.now() - pausedAt; btn.setAttribute('aria-label', 'Pause'); btn.innerHTML = play; } }); }
+      show(0);
+      const tick = t => { if (!paused) { const p = Math.min(1, (t - t0) / DUR); if (bars[cur]) bars[cur].style.width = (p * 100) + '%';
+          if (p >= 1 && !reduce) show((cur + 1) % slides.length); }
+        requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  // Treatment pages: "On this page" lists the article's numbered sections (the template builds it at runtime) and marks the
+  // one being read; the share buttons share this page
+  function toc() {
+    const frame = document.querySelector('[data-framer-name="Blog Content Frame"]'); if (!frame) return;
+    const host = frame.querySelector('div > div') || frame;
+    const heads = $$('[data-framer-name="content"] h3, [data-framer-name="content 1"] h3').filter(vis);
+    if (!heads.length) return;
+    host.innerHTML = '<ol class="es-toc">' + heads.map(h => '<li><a href="#' + h.id + '">' + h.textContent.trim() + '</a></li>').join('') + '</ol>';
+    const links = $$('a', host);
+    links.forEach((a, i) => a.addEventListener('click', e => { e.preventDefault(); scrollTo({ top: heads[i].getBoundingClientRect().top + scrollY - 110, behavior: 'smooth' }); }));
+    const mark = () => { let k = 0; heads.forEach((h, i) => { if (h.getBoundingClientRect().top < innerHeight * 0.35) k = i; }); links.forEach((a, i) => a.classList.toggle('is-on', i === k)); };
+    addEventListener('scroll', mark, { passive: true }); mark();
+    const u = encodeURIComponent(location.href), t = encodeURIComponent(document.title);
+    $$('[data-framer-name="Social Media Icons"] a').forEach(a => {
+      const h = a.getAttribute('href') || '';
+      if (h.startsWith('mailto:')) a.href = 'mailto:?subject=' + t + '&body=' + u;
+      else if (h.includes('twitter.com')) a.href = 'https://twitter.com/intent/tweet?text=' + t + '&url=' + u;
+      else if (h.includes('whatsapp')) a.href = 'https://api.whatsapp.com/send?text=' + t + '%20' + u;
+      else if (h.includes('facebook')) a.href = 'https://www.facebook.com/sharer/sharer.php?u=' + u;
+      else if (h.includes('linkedin')) a.href = 'https://www.linkedin.com/sharing/share-offsite/?url=' + u;
+    });
+  }
+
+  // Our Expertise: "Show more treatments" reveals the three extra treatment cards, then goes away
+  function showMore() {
+    const more = $$('[data-es-more]'); if (!more.length) return;
+    const btn = $$('a, button, [data-framer-name]').find(e => e.textContent.trim() === 'Show more treatments' && vis(e) && e.getBoundingClientRect().height < 80);
+    if (!btn) return;
+    const target = btn.closest('[class*="-container"]') || btn;
+    target.addEventListener('click', e => { e.preventDefault();
+      more.forEach((m, i) => { m.removeAttribute('data-es-more'); m.style.display = '';
+        if (!reduce) m.animate([{ opacity: 0, transform: 'translateY(24px)' }, { opacity: 1, transform: 'none' }], { duration: 700, delay: i * 90, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' }); });
+      target.style.display = 'none'; }, { once: true });
+  }
+
+
+  // Phones and tablets: the template only stacks its service cards on desktop. Asked for the scroll effects on mobile too
+  // (26 Nov): the six service cards stack as you scroll (the facility photos sit in two separate rows, so they keep their fade-up). A card taller than the screen sticks
+  // only once its bottom is in view, so nothing on it is hidden; each sits a little above the next so an edge shows.
+  function stackMobile() {
+    const groups = [
+      $$('[data-framer-name^="Service Card "]'),
+    ].map(g => g.filter(e => !g.some(o => o !== e && o.contains(e))));   // the outer box of each card only
+    const run = () => groups.forEach(all => {
+      const cards = all.filter(vis);
+      if (innerWidth >= 1200 || cards.length < 2) { cards.forEach(c => { if (c._snStk) { c.style.position = ''; c.style.top = ''; c.style.zIndex = ''; c.style.boxShadow = ''; c._snStk = 0; } }); return; }
+      const base = 76;
+      const t = cards.map((c, i) => Math.min(base + i * 10, innerHeight - c.offsetHeight - 16));
+      for (let i = t.length - 2; i >= 0; i--) t[i] = Math.min(t[i], t[i + 1] - 8);
+      cards.forEach((c, i) => { c._snStk = 1; c.style.position = 'sticky'; c.style.top = t[i] + 'px'; c.style.zIndex = i + 1;
+        c.style.boxShadow = '0 -14px 40px -18px rgba(74, 51, 41, .28)'; });
+    });
+    run(); addEventListener('resize', run); if (document.fonts) document.fonts.ready.then(run); setTimeout(run, 1200);
+  }
+
   /* ---------------------------------------------------------------------- go */
+  /* ------------------------------------------------ v2 scroll motion (added 26 Nov) */
+  // The Elqoriva template only fades blocks up. Asked for more life on scroll: headings rise in word by word, figures
+  // count up, the home treatment list lights up row by row as it passes the middle of the screen, and the Our Expertise
+  // treatment cards stack (CSS sticky, in mods.py). Opacity/transform only; nothing runs with reduced motion.
+  function motion() {
+    if (reduce) return;
+    const E = 'cubic-bezier(.22,1,.36,1)';
+    // 1. headings: words rise in, line by line
+    const heads = $$('h1, h2').filter(h => parseFloat(getComputedStyle(h).fontSize) >= 28 && h.textContent.trim().length > 2 && !h.closest('footer, nav, [data-framer-name="Menu"]'));
+    heads.forEach(h => {
+      const words = [];
+      const walk = n => [...n.childNodes].forEach(c => {
+        if (c.nodeType === 3) {
+          const parts = c.textContent.split(/(\s+)/); if (parts.length < 2 && !c.textContent.trim()) return;
+          const frag = document.createDocumentFragment();
+          parts.forEach(p => { if (!p) return; if (/^\s+$/.test(p)) { frag.appendChild(document.createTextNode(p)); return; }
+            const s = document.createElement('span'); s.textContent = p; s.style.display = 'inline-block'; s.style.opacity = 0; s.style.transform = 'translateY(.45em)'; frag.appendChild(s); words.push(s); });
+          c.replaceWith(frag);
+        } else if (c.nodeType === 1 && c.tagName !== 'BR') walk(c);
+      });
+      walk(h); if (!words.length) return;
+      const run = () => {
+        let line = -1, last = null;
+        words.forEach((w, i) => {
+          const t = Math.round(w.offsetTop); if (last === null || Math.abs(t - last) > 4) { line++; last = t; }
+          const a = w.animate([{ opacity: 0, transform: 'translateY(.45em)' }, { opacity: 1, transform: 'none' }],
+            { duration: 900, easing: E, delay: 120 + line * 110 + i * 35, fill: 'both' });
+          a.onfinish = () => { w.style.opacity = 1; w.style.transform = 'none'; a.cancel(); };
+        });
+      };
+      const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); (document.fonts ? document.fonts.ready : Promise.resolve()).then(run); } }, { threshold: 0.2 });
+      io.observe(h);
+    });
+    // 2. figures count up when they come into view (247, 5, 4.9; not years or step numbers)
+    $$('h2, h3, h4, p').filter(e => e.children.length <= 1 && parseFloat(getComputedStyle(e).fontSize) >= 24 && /^[1-9]\d{0,2}(\.\d)?(\/5)?$/.test(e.textContent.trim())).forEach(e => {
+      const leaf = e.querySelector('span') || e; const txt = leaf.textContent.trim();
+      const m = txt.match(/^(\d+(?:\.(\d))?)(.*)$/); const end = +m[1], dec = m[2] ? 1 : 0, suf = m[3];
+      const fmt = v => v.toFixed(dec) + suf;
+      leaf.textContent = fmt(0);
+      const io = new IntersectionObserver(es => { if (!es.some(x => x.isIntersecting)) return; io.disconnect();
+        const t0 = performance.now(), d = 1400;
+        const f = t => { const p = Math.min(1, (t - t0) / d); leaf.textContent = fmt(end * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(f); else leaf.textContent = txt; };
+        requestAnimationFrame(f); }, { threshold: 0.4 });
+      io.observe(e);
+    });
+    // stacking cards taller than the screen (phones) stick only once their bottom is in view, so their buttons are reachable
+    const stack = $$('[data-framer-name="Service Rows"] > [data-framer-name="Service Rows Item"]');
+    if (stack.length) {
+      const fit = () => {
+        stack.forEach(c => c.style.removeProperty('top'));
+        const base = stack.map(c => parseFloat(getComputedStyle(c).top) || 0);
+        const t = stack.map((c, i) => Math.min(base[i], innerHeight - c.offsetHeight - 16));
+        for (let i = t.length - 2; i >= 0; i--) t[i] = Math.min(t[i], t[i + 1] - 8);  // each card sits above the next: an edge of it stays visible
+        stack.forEach((c, i) => { if (t[i] !== base[i]) c.style.setProperty('top', t[i] + 'px', 'important'); });
+      };
+      fit(); addEventListener('resize', fit); if (document.fonts) document.fonts.ready.then(fit);
+    }
+    // 3. home treatment list: each row is brightest as it crosses the middle of the screen
+    const rows = $$('[data-framer-name="Service List Item"]');
+    if (rows.length) {
+      let ticking = false;
+      const tick = () => { ticking = false; const mid = innerHeight * 0.5;
+        const vals = rows.map(r => { const b = r.getBoundingClientRect(); const d = Math.abs(b.top + b.height / 2 - mid) / (innerHeight * 0.45); return Math.max(0.28, 1 - Math.min(1, d) * 0.72); });
+        rows.forEach((r, i) => { const v = vals[i].toFixed(3); if (r._snO !== v) { r._snO = v; r.style.opacity = v; } }); };
+      const req = () => { if (!ticking) { ticking = true; requestAnimationFrame(tick); } };
+      rows.forEach(r => r.style.transition = 'opacity .25s linear');
+      addEventListener('scroll', req, { passive: true }); addEventListener('resize', req); req();
+    }
+  }
+
   function init() {
     document.documentElement.style.setProperty('--sn-d', TRANS.dur + 'ms'); document.documentElement.style.setProperty('--sn-e', TRANS.easing);
     window.__snErr = [];
-    [appear, reveals, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors]
+    [appear, reveals, revealsFallback, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors, reel, toc, showMore, stackMobile]
       .forEach(f => { try { f(); } catch (e) { window.__snErr.push((f.name || 'step') + ': ' + e.message); console.error(e); } });
     let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); $$('[class*="framer-v-"]').forEach(e => e._snH = 0); bindStates(document.body); } });
   }
