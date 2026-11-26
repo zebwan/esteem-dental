@@ -774,10 +774,80 @@
   }
 
   /* ---------------------------------------------------------------------- go */
+  /* ------------------------------------------------ v2 scroll motion (added 26 Nov) */
+  // The Elqoriva template only fades blocks up. Asked for more life on scroll: headings rise in word by word, figures
+  // count up, the home treatment list lights up row by row as it passes the middle of the screen, and the Our Expertise
+  // treatment cards stack (CSS sticky, in mods.py). Opacity/transform only; nothing runs with reduced motion.
+  function motion() {
+    if (reduce) return;
+    const E = 'cubic-bezier(.22,1,.36,1)';
+    // 1. headings: words rise in, line by line
+    const heads = $$('h1, h2').filter(h => parseFloat(getComputedStyle(h).fontSize) >= 28 && h.textContent.trim().length > 2 && !h.closest('footer, nav, [data-framer-name="Menu"]'));
+    heads.forEach(h => {
+      const words = [];
+      const walk = n => [...n.childNodes].forEach(c => {
+        if (c.nodeType === 3) {
+          const parts = c.textContent.split(/(\s+)/); if (parts.length < 2 && !c.textContent.trim()) return;
+          const frag = document.createDocumentFragment();
+          parts.forEach(p => { if (!p) return; if (/^\s+$/.test(p)) { frag.appendChild(document.createTextNode(p)); return; }
+            const s = document.createElement('span'); s.textContent = p; s.style.display = 'inline-block'; s.style.opacity = 0; s.style.transform = 'translateY(.45em)'; frag.appendChild(s); words.push(s); });
+          c.replaceWith(frag);
+        } else if (c.nodeType === 1 && c.tagName !== 'BR') walk(c);
+      });
+      walk(h); if (!words.length) return;
+      const run = () => {
+        let line = -1, last = null;
+        words.forEach((w, i) => {
+          const t = Math.round(w.offsetTop); if (last === null || Math.abs(t - last) > 4) { line++; last = t; }
+          const a = w.animate([{ opacity: 0, transform: 'translateY(.45em)' }, { opacity: 1, transform: 'none' }],
+            { duration: 900, easing: E, delay: 120 + line * 110 + i * 35, fill: 'both' });
+          a.onfinish = () => { w.style.opacity = 1; w.style.transform = 'none'; a.cancel(); };
+        });
+      };
+      const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); (document.fonts ? document.fonts.ready : Promise.resolve()).then(run); } }, { threshold: 0.2 });
+      io.observe(h);
+    });
+    // 2. figures count up when they come into view (247, 5, 4.9; not years or step numbers)
+    $$('h2, h3, h4, p').filter(e => e.children.length <= 1 && parseFloat(getComputedStyle(e).fontSize) >= 24 && /^[1-9]\d{0,2}(\.\d)?(\/5)?$/.test(e.textContent.trim())).forEach(e => {
+      const leaf = e.querySelector('span') || e; const txt = leaf.textContent.trim();
+      const m = txt.match(/^(\d+(?:\.(\d))?)(.*)$/); const end = +m[1], dec = m[2] ? 1 : 0, suf = m[3];
+      const fmt = v => v.toFixed(dec) + suf;
+      leaf.textContent = fmt(0);
+      const io = new IntersectionObserver(es => { if (!es.some(x => x.isIntersecting)) return; io.disconnect();
+        const t0 = performance.now(), d = 1400;
+        const f = t => { const p = Math.min(1, (t - t0) / d); leaf.textContent = fmt(end * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(f); else leaf.textContent = txt; };
+        requestAnimationFrame(f); }, { threshold: 0.4 });
+      io.observe(e);
+    });
+    // stacking cards taller than the screen (phones) stick only once their bottom is in view, so their buttons are reachable
+    const stack = $$('[data-framer-name="Service Rows"] > [data-framer-name="Service Rows Item"]');
+    if (stack.length) {
+      const fit = () => {
+        stack.forEach(c => c.style.removeProperty('top'));
+        const base = stack.map(c => parseFloat(getComputedStyle(c).top) || 0);
+        const t = stack.map((c, i) => Math.min(base[i], innerHeight - c.offsetHeight - 16));
+        for (let i = t.length - 2; i >= 0; i--) t[i] = Math.min(t[i], t[i + 1] - 8);  // each card sits above the next: an edge of it stays visible
+        stack.forEach((c, i) => { if (t[i] !== base[i]) c.style.setProperty('top', t[i] + 'px', 'important'); });
+      };
+      fit(); addEventListener('resize', fit); if (document.fonts) document.fonts.ready.then(fit);
+    }
+    // 3. home treatment list: each row is brightest as it crosses the middle of the screen
+    const rows = $$('[data-framer-name="Service List Item"]');
+    if (rows.length) {
+      let ticking = false;
+      const tick = () => { ticking = false; const mid = innerHeight * 0.5;
+        const vals = rows.map(r => { const b = r.getBoundingClientRect(); const d = Math.abs(b.top + b.height / 2 - mid) / (innerHeight * 0.45); return Math.max(0.28, 1 - Math.min(1, d) * 0.72); });
+        rows.forEach((r, i) => { const v = vals[i].toFixed(3); if (r._snO !== v) { r._snO = v; r.style.opacity = v; } }); };
+      const req = () => { if (!ticking) { ticking = true; requestAnimationFrame(tick); } };
+      rows.forEach(r => r.style.transition = 'opacity .25s linear');
+      addEventListener('scroll', req, { passive: true }); addEventListener('resize', req); req();
+    }
+  }
+
   function init() {
     document.documentElement.style.setProperty('--sn-d', TRANS.dur + 'ms'); document.documentElement.style.setProperty('--sn-e', TRANS.easing);
     window.__snErr = [];
-    [appear, reveals, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors]
+    [appear, reveals, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors, motion]
       .forEach(f => { try { f(); } catch (e) { window.__snErr.push((f.name || 'step') + ': ' + e.message); console.error(e); } });
     let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); $$('[class*="framer-v-"]').forEach(e => e._snH = 0); bindStates(document.body); } });
   }
