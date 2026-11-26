@@ -238,7 +238,7 @@
     const st = ST();
     const hov = st.hover || {};
     $$('[class*="framer-v-"]', scope).concat(scope.matches && scope.matches('[class*="framer-v-"]') ? [scope] : []).forEach(el => {
-      if (el._snH) return;
+      if (el._snH || el.closest('.framer-mAPkR')) return;   // FAQ items: faq() owns them (a hover snapshot would undo an open item)
       const t = typeKey(el); const rec = t && hov[t]; if (!rec) return;
       el._snH = 1;
       el.addEventListener('mouseenter', () => { if (el._snHover) return; el._snHover = 1; el._snRest = el.outerHTML; morph(el, rec.hover, true); el._snH = 1; });
@@ -868,6 +868,56 @@
     run(); addEventListener('resize', run); if (document.fonts) document.fonts.ready.then(run); setTimeout(run, 1200);
   }
 
+
+  // FAQ (Healcure): each question opens and closes on its own, as on the live template, and several can be open.
+  // The recorder saw the whole list change on each press, so replaying it closed the others: here each item swaps only
+  // itself between its closed look and its own open look (taken from that recording), and its height eases open.
+  function faq() {
+    const ITEM = '.framer-mAPkR';
+    const allStates = D.states || {};
+    const openHtml = new Map();   // breakpoint -> [open html per item index]
+    Object.entries(allStates).forEach(([bp, st]) => {
+      const list = st.tap || []; const arr = [];
+      st.tap = list.filter(tp => {
+        const own = (tp.first || []).find(c => /data-framer-name="FAQ"/.test(c.html.slice(0, 300)) && /framer-mAPkR/.test(c.html));
+        if (!own) return true;
+        const t = document.createElement('template'); t.innerHTML = own.html;
+        const items = [...t.content.querySelectorAll(ITEM)];
+        const opened = items.find(x => /Open/.test(x.getAttribute('data-framer-name') || ''));
+        if (opened) arr[items.indexOf(opened)] = opened.outerHTML;
+        return false;   // handled here
+      });
+      openHtml.set(bp, arr);
+      // a hover recorded on a question redraws the whole list (closing the others): drop those
+      st.hover_inst = (st.hover_inst || []).filter(hi => !(hi.changes || []).some(c => /framer-mAPkR/.test(c.hover || c.rest || '')));
+    });
+    $$(ITEM).forEach(el => {
+      if (el._snFaq) return; el._snFaq = 1;
+      el.style.cursor = 'pointer';
+      if (el.parentElement && /-container/.test(el.parentElement.className)) el.parentElement.style.height = 'auto';   // the box grows with its question
+      el.addEventListener('click', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        const item = ev.currentTarget;
+        const sib = $$(ITEM, item.parentElement.closest('[data-framer-name="FAQ"]') || document).filter(vis);
+        const i = sib.indexOf(item); const arr = openHtml.get(BP()) || [];
+        const box = item.parentElement; const h0 = box.getBoundingClientRect().height;
+        if (!item._snClosed) item._snClosed = item.outerHTML;
+        const isOpen = item._snOpen;
+        if (!isOpen && !arr[i]) return;
+        morph(item, isOpen ? item._snClosed : arr[i]);
+        item._snOpen = !isOpen;
+        const h1 = box.getBoundingClientRect().height;
+        if (!reduce && Math.abs(h1 - h0) > 2) {
+          box.style.overflow = 'hidden';
+          const a = box.animate([{ height: h0 + 'px' }, { height: h1 + 'px' }], { duration: 380, easing: 'cubic-bezier(.22,1,.36,1)' });
+          a.onfinish = () => { box.style.overflow = ''; box.style.height = 'auto'; };
+          const ans = [...item.querySelectorAll('p')].slice(1);
+          if (!isOpen) ans.forEach(p => p.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'ease-out' }));
+        }
+      }, true);
+    });
+  }
+
   /* ---------------------------------------------------------------------- go */
   /* ------------------------------------------------ v2 scroll motion (added 26 Nov) */
   // The Elqoriva template only fades blocks up. Asked for more life on scroll: headings rise in word by word, figures
@@ -942,7 +992,7 @@
   function init() {
     document.documentElement.style.setProperty('--sn-d', TRANS.dur + 'ms'); document.documentElement.style.setProperty('--sn-e', TRANS.easing);
     window.__snErr = [];
-    [appear, reveals, revealsFallback, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors, reel, toc, showMore, stackMobile]
+    [faq, appear, reveals, revealsFallback, glyphRoom, compare, scrollTransforms, loops, () => bindStates(document.body), bindInstanceStates, portals, textFx, navHide, booking, storyStrip, tickers, slideshows, counters, video, forms, anchors, reel, toc, showMore, stackMobile]
       .forEach(f => { try { f(); } catch (e) { window.__snErr.push((f.name || 'step') + ': ' + e.message); console.error(e); } });
     let bp = BP(); addEventListener('resize', () => { if (BP() !== bp) { bp = BP(); $$('[class*="framer-v-"]').forEach(e => e._snH = 0); bindStates(document.body); } });
   }
