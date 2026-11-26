@@ -13,11 +13,11 @@
 .es-cta { display: flex; margin-top: 22px; position: relative; z-index: 2; }
 .es-cta-center { justify-content: center; } .es-cta-left { justify-content: flex-start; }
 .es-cta > a { position: relative !important; width: auto !important; height: auto !important; text-decoration: none; }
-.es-wa { position: fixed; right: 20px; bottom: 20px; z-index: 50; display: inline-flex; align-items: center; gap: 10px; height: 56px;
-  padding: 0 20px 0 16px; border-radius: 999px; background: #25d366; color: #fff; text-decoration: none; font: 600 15px/1 Inter, sans-serif;
-  box-shadow: 0 10px 30px -8px rgba(0,0,0,.35); transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s; }
-.es-wa:hover { transform: translateY(-3px); box-shadow: 0 14px 34px -8px rgba(0,0,0,.4); }
-@media (max-width: 809.98px) { .es-wa { right: 14px; bottom: 14px; height: 52px; width: 52px; padding: 0; justify-content: center; } .es-wa span { display: none; } }
+.es-wa { position: fixed; right: 22px; bottom: 22px; z-index: 50; width: 58px; height: 58px; border-radius: 50%; background: #25d366;
+  display: flex; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 10px 28px -8px rgba(0,0,0,.35);
+  transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s; }
+.es-wa:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 14px 32px -8px rgba(0,0,0,.4); }
+@media (max-width: 809.98px) { .es-wa { right: 16px; bottom: 16px; width: 54px; height: 54px; } .es-wa svg { width: 28px; height: 28px; } }
 .es-team { width: 100%; display: flex; justify-content: center; padding: 80px 0; box-sizing: border-box; }
 .es-team-in { width: 100%; max-width: 1310px; padding: 0 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 50px; }
 .es-team-head { width: 100% !important; }
