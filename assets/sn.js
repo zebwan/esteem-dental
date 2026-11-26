@@ -278,35 +278,116 @@
   // Booking widget: the template keeps the picked date and the picked time independently (recorded states are whole-widget
   // snapshots, so they cannot combine them). Same tokens as the template's Selected cells.
   function booking() {
-    const TK = { dateBg: 'var(--token-57839b25-cc93-4ce0-95f5-f2666d8c5df9)', timeBg: 'var(--token-f3e81d5d-5f00-4667-aa04-a6f05bf90bd5)',
-                 light: 'var(--token-25f21b71-5737-491a-9b12-44cf32d6e445)', dark: 'var(--token-f3e81d5d-5f00-4667-aa04-a6f05bf90bd5)' };
+    // The template's calendar is a fixed October mock-up. Here it is a real one: it opens on this month, the arrows change
+    // month, past days are greyed out and any day from today on can be picked (asked for 26 Nov). Times keep the
+    // template's pills. "Contact our clinic" carries the chosen visit to the Contact page's message box.
+    const TK = { brown: 'var(--token-57839b25-cc93-4ce0-95f5-f2666d8c5df9)', dark: 'var(--token-f3e81d5d-5f00-4667-aa04-a6f05bf90bd5)',
+                 light: 'var(--token-25f21b71-5737-491a-9b12-44cf32d6e445)' };
     const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (!document.getElementById('es-cal-css')) {
+      const st = document.createElement('style'); st.id = 'es-cal-css';
+      st.textContent = '.es-cal{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px;width:100%}'
+        + '.es-day{all:unset;box-sizing:border-box;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;cursor:pointer;'
+        + 'color:' + TK.dark + ';transition:background-color .2s ease,color .2s ease;-webkit-tap-highlight-color:transparent}'
+        + '.es-day:hover{background:rgba(134,85,67,.08)}.es-day:focus-visible{outline:2px solid ' + TK.brown + ';outline-offset:-2px}'
+        + '.es-day.is-today{box-shadow:inset 0 0 0 1px ' + TK.brown + '}'
+        + '.es-day.is-on{background:' + TK.brown + ';color:' + TK.light + ';box-shadow:none}'
+        + '.es-day[disabled]{color:rgba(48,42,39,.28);cursor:default;background:none}.es-day.is-blank{visibility:hidden}'
+        + '.es-cal-nav{position:absolute;top:0;bottom:0;width:50%;cursor:pointer;background:none;border:0;padding:0;z-index:2}'
+        + '.es-cal-nav[disabled]{cursor:default}';
+      document.head.appendChild(st);
+    }
     $$('[data-framer-name="Widget / Booking"]').forEach(w => {
-      const cells = [...w.querySelectorAll('[data-framer-name="Frame"][data-highlight], [data-framer-name="Selected"]')]
-        .map(el => { const p = el.querySelector('p'); const t = p ? p.textContent.trim() : '';
-          return { el, p, txt: p && p.parentElement, t, kind: /^\d{1,2}$/.test(t) ? 'date' : /^\d\d:\d\d$/.test(t) ? 'time' : null,
-                   on: el.getAttribute('data-framer-name') === 'Selected' }; })
-        .filter(c => c.kind);
-      if (!cells.length) return;
+      if (w._esCal) return; w._esCal = 1;
+      const cal = w.querySelector('[data-framer-name="Calendar"]'); if (!cal) return;
+      const title = [...w.querySelectorAll('h4')].find(h => /^[A-Z][a-z]+ \d{4}$/.test(h.textContent.trim()));
       const ps = [...w.querySelectorAll('p')];
-      const vDate = ps.find(p => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} Oct$/.test(p.textContent.trim()));
-      const vTime = ps.find(p => /^\d\d:\d\d$/.test(p.textContent.trim()) && !cells.some(c => c.p === p));
+      const sample = ps.find(p => /^\d{1,2}$/.test(p.textContent.trim()) && cal.contains(p));
+      const vDate = ps.find(p => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2}$/.test(p.textContent.trim()));
+      const times = [...w.querySelectorAll('[data-framer-name="Frame"][data-highlight], [data-framer-name="Selected"]')]
+        .map(el => { const p = el.querySelector('p'); return { el, p, txt: p && p.parentElement, t: p ? p.textContent.trim() : '', on: el.getAttribute('data-framer-name') === 'Selected' }; })
+        .filter(c => /^\d\d:\d\d$/.test(c.t) && !cal.contains(c.el));
+      const vTime = ps.find(p => /^\d\d:\d\d$/.test(p.textContent.trim()) && !times.some(c => c.p === p));
+      const cta = [...w.querySelectorAll('a')].find(a => /contact/i.test(a.getAttribute('href') || ''));
+      const font = sample ? getComputedStyle(sample) : null;
+      // hide the template's day rows (keep the weekday header); a stylesheet rule survives recorded states
+      const calCls = [...cal.classList].find(c => /^framer-(?!v-)[a-z0-9]+$/.test(c));
+      if (calCls) { const st = document.createElement('style'); st.textContent = '.' + calCls + ' > :not(:first-child):not(.es-cal){display:none!important}'; document.head.appendChild(st); }
+      let view = new Date(today.getFullYear(), today.getMonth(), 1);
+      let pick = new Date(today); pick.setDate(pick.getDate() + 1);
+      let time = (times.find(c => c.on) || times[0] || {}).t || '';
+      const maxView = new Date(today.getFullYear(), today.getMonth() + 12, 1);
+      const grid = document.createElement('div'); grid.className = 'es-cal'; grid.setAttribute('role', 'grid');
+      let prev = null, next = null;
+      const visit = () => DAYS[pick.getDay()] + ' ' + pick.getDate() + ' ' + MONTHS[pick.getMonth()].slice(0, 3);
+      const sync = () => {
+        if (vDate) vDate.textContent = visit();
+        if (vTime && time) vTime.textContent = time;
+        if (cta) { const base = (cta.getAttribute('href') || '').split('?')[0];
+          cta.setAttribute('href', base + '?visit=' + encodeURIComponent(visit() + ' ' + pick.getFullYear() + (time ? ', ' + time : ''))); }
+      };
+      const render = () => {
+        if (title) title.textContent = MONTHS[view.getMonth()] + ' ' + view.getFullYear();
+        grid.innerHTML = '';
+        const lead = (view.getDay() + 6) % 7;                          // Monday first, like the template's header
+        const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+        for (let i = 0; i < lead; i++) { const b = document.createElement('span'); b.className = 'es-day is-blank'; grid.appendChild(b); }
+        for (let d = 1; d <= days; d++) {
+          const dt = new Date(view.getFullYear(), view.getMonth(), d);
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'es-day'; b.textContent = d;
+          if (font) { b.style.fontFamily = font.fontFamily; b.style.fontSize = font.fontSize; b.style.fontWeight = font.fontWeight; b.style.letterSpacing = font.letterSpacing; }
+          b.setAttribute('aria-label', DAYS[dt.getDay()] + ' ' + d + ' ' + MONTHS[dt.getMonth()] + ' ' + dt.getFullYear());
+          if (dt < today) b.disabled = true;
+          if (+dt === +today) b.classList.add('is-today');
+          if (+dt === +pick) { b.classList.add('is-on'); b.setAttribute('aria-selected', 'true'); }
+          b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); pick = dt; render(); sync(); });
+          grid.appendChild(b);
+        }
+        if (prev) prev.disabled = view <= new Date(today.getFullYear(), today.getMonth(), 1);
+        if (next) next.disabled = view >= maxView;
+      };
+      // the arrows are one drawing in the template: its left half goes back a month, its right half forward
+      const tbox = title && title.closest('[data-framer-component-type="RichTextContainer"]');
+      const arrows = tbox && tbox.nextElementSibling;
+      if (arrows) {
+        arrows.style.position = 'relative';
+        prev = document.createElement('button'); prev.type = 'button'; prev.className = 'es-cal-nav'; prev.style.left = '0'; prev.setAttribute('aria-label', 'Previous month');
+        next = document.createElement('button'); next.type = 'button'; next.className = 'es-cal-nav'; next.style.right = '0'; next.setAttribute('aria-label', 'Next month');
+        prev.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); if (!prev.disabled) { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(); } });
+        next.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); if (!next.disabled) { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(); } });
+        arrows.append(prev, next);
+      }
+      cal.appendChild(grid); render(); sync();
+      // recorded states can swap the calendar's children back: put the grid and arrow buttons back if they go
+      new MutationObserver(() => {
+        if (!cal.isConnected) return;
+        if (!cal.contains(grid)) { cal.appendChild(grid); render(); }
+        if (arrows && prev && !arrows.contains(prev)) arrows.append(prev, next);
+      }).observe(w, { childList: true, subtree: true });
+      // time pills
       const look = (c, on) => {
         c.on = on; c.el.style.transition = 'background-color .25s ease';
-        c.el.style.backgroundColor = on ? (c.kind === 'date' ? TK.dateBg : TK.timeBg) : (c.kind === 'time' ? TK.light : 'transparent');
-        if (c.kind === 'date' && !on) c.el.style.borderRadius = '12px';
+        c.el.style.backgroundColor = on ? TK.dark : TK.light;
         c.txt.style.setProperty('--extracted-r6o4lv', on ? TK.light : TK.dark);
       };
       addEventListener('click', ev => {
         if (!w.contains(ev.target)) return;
-        const c = cells.find(x => x.el.contains(ev.target)); if (!c) return;
+        const c = times.find(x => x.el.contains(ev.target)); if (!c) return;
         ev.preventDefault(); ev.stopImmediatePropagation();
         if (c.on) return;
-        cells.filter(x => x.kind === c.kind && x.on).forEach(x => look(x, false)); look(c, true);
-        if (c.kind === 'date' && vDate) vDate.textContent = DAYS[new Date(2026, 9, +c.t).getDay()] + ' ' + c.t + ' Oct';
-        if (c.kind === 'time' && vTime) vTime.textContent = c.t;
+        times.filter(x => x.on).forEach(x => look(x, false)); look(c, true); time = c.t; sync();
       }, true);
     });
+    // Contact page: the visit chosen in the calendar lands in the message box (and the time-of-day select)
+    const v = new URLSearchParams(location.search).get('visit');
+    if (v) {
+      $$('textarea').forEach(t => { if (!t.value) t.value = 'Preferred visit: ' + v + '.\n'; });
+      const hr = +(v.match(/, (\d\d):/) || [])[1];
+      if (hr) $$('select').forEach(sel => { const want = hr < 12 ? /morning/i : hr < 17 ? /afternoon/i : /evening/i;
+        const o = [...sel.options].find(o => want.test(o.textContent)); if (o) sel.value = o.value; });
+    }
   }
 
   // Framer scrollDirection effect on the nav wrap: scrolling down past 8px hides it (y -110, opacity 0), scrolling up shows it.
