@@ -569,13 +569,56 @@
 
   /* -------------------------------------------------------------------- forms */
   function forms() {
-    $$('form').forEach(f => f.addEventListener('submit', e => {
-      e.preventDefault();
-      const b = f.querySelector('[type=submit]') || f.querySelector('button'); if (!b) return;
-      const label = b.querySelector('p, span') || b; const old = label.textContent;
-      label.textContent = 'Sending…';
-      setTimeout(() => { label.textContent = f.dataset.snDone || 'Thank you, we will be in touch'; f.reset(); setTimeout(() => label.textContent = old, 4000); }, 900);
-    }));
+    // The contact form goes to the clinic's WhatsApp (asked for 26 Nov): Send opens WhatsApp with every answer written out.
+    const WA = '60198578829';
+    const OPTS = {
+      treatment: ['Dental implants', 'All-on-X / full arch', 'Digital dentistry', 'Clear aligners', 'Crowns & restorations', 'Scale & polish',
+                  'Whitening', 'Fillings', 'Root canal', 'Periodontal care', 'Extractions', 'Dental assessment', 'Not sure yet'],
+      day: ['Any day', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      time: ['Any time', 'Morning (9am–1pm)', 'Afternoon (2pm–5pm)'],
+    };
+    const LABEL = { name: 'Name', phone: 'Phone', email: 'Email', treatment: 'Treatment', day: 'Preferred day', time: 'Preferred time', message: 'Message' };
+    $$('form').forEach(f => {
+      if (f._snForm) return; f._snForm = 1;
+      // the template's dropdowns are buttons over a hidden input: lay a real <select> over each, same look
+      $$('input[type=hidden]', f).forEach(h => {
+        const btn = h.nextElementSibling; const opts = OPTS[h.name];
+        if (!btn || btn.tagName !== 'BUTTON' || !opts) return;
+        const span = btn.querySelector('span'); const placeholder = span ? span.textContent : '';
+        const wrap = btn.parentElement; if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+        const sel = document.createElement('select'); sel.setAttribute('aria-label', placeholder);
+        sel.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;z-index:2';
+        sel.innerHTML = '<option value="">' + placeholder + '</option>' + opts.map(o => '<option>' + o + '</option>').join('');
+        btn.insertAdjacentElement('afterend', sel);
+        // keep the select exactly over the button
+        const place = () => { sel.style.inset = 'auto'; sel.style.left = btn.offsetLeft + 'px'; sel.style.top = btn.offsetTop + 'px'; sel.style.width = btn.offsetWidth + 'px'; sel.style.height = btn.offsetHeight + 'px'; };
+        place(); addEventListener('resize', place);
+        sel.addEventListener('change', () => { h.value = sel.value; if (span) span.textContent = sel.value || placeholder; });
+        sel._snHidden = h; h._snSel = sel;
+      });
+      // a visit picked in the calendar: day and time of day follow it
+      const v = new URLSearchParams(location.search).get('visit');
+      if (v) {
+        const day = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' }[v.slice(0, 3)];
+        const hr = +(v.match(/, (\d\d):/) || [])[1];
+        const setSel = (name, val) => { const h = f.querySelector('input[type=hidden][name="' + name + '"]'); if (!h || !h._snSel || !val) return;
+          h._snSel.value = val; h._snSel.dispatchEvent(new Event('change')); };
+        setSel('day', day); if (hr) setSel('time', hr < 13 ? OPTS.time[1] : OPTS.time[2]);
+        const t = f.querySelector('textarea'); if (t && !t.value) t.value = 'Preferred visit: ' + v + '.\n';
+      }
+      f.addEventListener('submit', e => {
+        e.preventDefault();
+        if (f.reportValidity && !f.reportValidity()) return;
+        const data = new FormData(f); const lines = ['Hi Esteem Dental Clinic, I would like to arrange a visit.', ''];
+        for (const [k, label] of Object.entries(LABEL)) { const val = (data.get(k) || '').toString().trim(); if (val) lines.push(label + ': ' + val); }
+        const url = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(lines.join('\n'));
+        const win = window.open(url, '_blank', 'noopener');
+        if (!win) location.href = url;
+        const b = f.querySelector('[type=submit]') || f.querySelector('button:last-of-type');
+        const label = b && (b.querySelector('p, span') || b);
+        if (label) { const old = label.textContent; label.textContent = 'Opening WhatsApp…'; setTimeout(() => label.textContent = old, 3000); }
+      });
+    });
   }
 
   /* ------------------------------------------------------------- anchor links */
