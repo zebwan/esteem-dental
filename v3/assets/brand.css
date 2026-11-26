@@ -10,6 +10,8 @@
 [data-framer-name="User Info Section"] p { white-space: nowrap !important; }
 [data-framer-name="Contact Details"] a[href^="mailto:"] { font-size: 12.5px !important; white-space: nowrap; }
 
+/* header logo: a little larger than the template mark (27 Nov) */
+nav .framer-tbzm9c-container, nav .framer-tbzm9c-container > .framer-LQZpV { width: 192px !important; } nav .framer-LQZpV .framer-1ezjnci, nav .framer-LQZpV .svgContainer, nav .framer-LQZpV .es-logo { width: 100% !important; height: 100% !important; max-width: none !important; }
 .es-cta { display: flex; margin-top: 22px; position: relative; z-index: 2; }
 .es-cta-center { justify-content: center; } .es-cta-left { justify-content: flex-start; }
 .es-cta > a { position: relative !important; width: auto !important; height: auto !important; text-decoration: none; }
