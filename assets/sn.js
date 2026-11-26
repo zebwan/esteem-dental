@@ -507,6 +507,22 @@
       const cfg = (D.tickers || []).find(t => ul.closest('.' + t.container)) || { speed: 50, hover: null };
       sec.style.opacity = 1;
       const items = [...ul.children];
+      // About's clinic photos: two columns that drift vertically, the first up and the 'Secondary' one down, as on the
+      // live template (~35px/s). Three copies of the photos, no more, so the column keeps its height.
+      if (getComputedStyle(ul).flexDirection.startsWith('column')) {
+        const gapY = parseFloat(getComputedStyle(ul).rowGap || getComputedStyle(ul).gap) || 0;
+        for (let k = 0; k < 2; k++) items.forEach(li => { const c = li.cloneNode(true); c.setAttribute('aria-hidden', 'true'); ul.appendChild(c); });
+        const down = !!ul.closest('[data-framer-name^="Secondary"]');
+        let setH = 0; const measure = () => { setH = items.reduce((t, li) => t + li.getBoundingClientRect().height, 0) + gapY * items.length; };
+        measure(); addEventListener('resize', measure); if (document.fonts) document.fonts.ready.then(measure);
+        let y = down ? -setH : 0, last = 0, inView = true;
+        new IntersectionObserver(es => inView = es[0].isIntersecting).observe(sec);
+        const stepV = t => { const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t;
+          if (inView && !reduce && setH) { y += (down ? 1 : -1) * 35 * dt; if (y <= -setH) y += setH; if (y > 0) y -= setH; ul.style.transform = `translateY(${y}px)`; }
+          requestAnimationFrame(stepV); };
+        requestAnimationFrame(stepV);
+        return;
+      }
       const gap = parseFloat(getComputedStyle(ul).columnGap || getComputedStyle(ul).gap) || 0;
       let setW = 0;
       const fill = () => { setW = items.reduce((s, li) => s + li.getBoundingClientRect().width, 0) + gap * items.length;
