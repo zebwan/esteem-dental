@@ -256,6 +256,10 @@
     const taps = st.tap || [];
     taps.forEach(tp => tp._k = tp.trigger.k + ':' + tp.trigger.i);
     document.addEventListener('click', ev => {
+      // a real link always goes where it points: the recorder also logged some link wrappers (the phone menu's items)
+      // as taps, and replaying those cancelled the page change (27 Nov: "I can't click the other headers on mobile")
+      const link = ev.target.closest && ev.target.closest('a[href]');
+      if (link) { const hr = link.getAttribute('href') || ''; if (hr && !hr.startsWith('#') && !hr.startsWith('javascript')) return; }
       const st2 = ST(); const list = st2.tap || []; if (!list.length) return;
       for (let tp of list) {
         const t = find(tp.trigger); if (!t || !t.contains(ev.target)) continue;
