@@ -8,6 +8,7 @@
 .es-toc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; } .es-toc a { display: block; font-family: Inter, sans-serif; font-size: 13px; line-height: 1.45; color: #6b625a; text-decoration: none; transition: color .2s; } .es-toc a:hover, .es-toc a.is-on { color: #865543; }
 .framer-1l32g4d, .framer-14mz6kp, .framer-1cuofru, .framer-ctvac, .framer-716gxl { overflow: visible !important; } .framer-105cnpb { padding-bottom: 6px !important; margin-bottom: -6px !important; } .framer-105cnpb p, .framer-105cnpb .framer-text { padding-bottom: 6px; }
 [data-framer-name="User Info Section"] p { white-space: nowrap !important; }
+.es-figs { display: grid; gap: 12px; margin: 22px 0 30px; } .es-figs-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .es-figs-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .es-figs-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } .es-fig { margin: 0; display: flex; flex-direction: column; gap: 8px; } .es-fig-i { display: block; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: #f3ece4; } .es-fig-i img { width: 100%; height: 100%; object-fit: cover; display: block; } .es-fig-w .es-fig-i { background: #f6f2ee; } .es-fig-w .es-fig-i img { object-fit: contain; } .es-fig figcaption { font: 400 13px/1.4 Inter, sans-serif; color: #6b625a; } @media (max-width: 809.98px) { .es-figs-3, .es-figs-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .es-figs { gap: 10px; } .es-figs-3 .es-fig:first-child { grid-column: 1 / -1; } .es-figs-3 .es-fig:first-child .es-fig-i { aspect-ratio: 16 / 9; } }
 [data-framer-name="Contact Details"] a[href^="mailto:"] { font-size: 12.5px !important; white-space: nowrap; }
 
 /* header logo: a little larger than the template mark (27 Nov) */
@@ -15,11 +16,22 @@ nav .framer-tbzm9c-container, nav .framer-tbzm9c-container > .framer-LQZpV { wid
 .es-cta { display: flex; margin-top: 22px; position: relative; z-index: 2; }
 .es-cta-center { justify-content: center; } .es-cta-left { justify-content: flex-start; }
 .es-cta > a { position: relative !important; width: auto !important; height: auto !important; text-decoration: none; }
-.es-wa { position: fixed; right: 22px; bottom: 22px; z-index: 50; width: 58px; height: 58px; border-radius: 50%; background: #25d366;
-  display: flex; align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 10px 28px -8px rgba(0,0,0,.35);
+.es-wa-wrap { position: fixed; right: 22px; bottom: 22px; z-index: 50; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.es-wa { width: 58px; height: 58px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: #25d366;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 28px -8px rgba(0,0,0,.35);
   transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s; }
 .es-wa:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 14px 32px -8px rgba(0,0,0,.4); }
-@media (max-width: 809.98px) { .es-wa { right: 16px; bottom: 16px; width: 54px; height: 54px; } .es-wa svg { width: 28px; height: 28px; } }
+.es-wa-menu { display: flex; flex-direction: column; gap: 4px; padding: 6px; background: #fff; border: 1px solid rgb(222,222,222); border-radius: 16px;
+  box-shadow: 0 18px 40px -14px rgba(48,42,39,.35); opacity: 0; transform: translateY(8px) scale(.96); transform-origin: bottom right;
+  pointer-events: none; transition: opacity .2s ease, transform .25s cubic-bezier(.22,1,.36,1); }
+.es-wa-wrap.is-open .es-wa-menu { opacity: 1; transform: none; pointer-events: auto; }
+.es-wa-opt { display: flex; align-items: center; gap: 10px; padding: 11px 16px 11px 12px; border-radius: 11px; text-decoration: none; white-space: nowrap;
+  font: 500 14px/1.2 Inter, sans-serif; color: #302a27; transition: background .2s; }
+.es-wa-opt svg { color: #865543; flex: none; } .es-wa-opt-wa svg { color: #25d366; }
+.es-wa-opt:hover { background: #f5efe8; }
+@media (max-width: 809.98px) { .es-wa-wrap { right: 16px; bottom: 16px; } .es-wa { width: 54px; height: 54px; } .es-wa svg { width: 28px; height: 28px; } .es-wa-opt svg { width: 18px; height: 18px; } }
+/* home hero on phones: the template's 100px blur layer eased a little (27 Nov) */
+@media (max-width: 809.98px) { .framer-1hmwb0w { -webkit-backdrop-filter: blur(70px) !important; backdrop-filter: blur(70px) !important; } }
 .es-team { width: 100%; display: flex; justify-content: center; padding: 80px 0; box-sizing: border-box; }
 .es-team-in { width: 100%; max-width: 1310px; padding: 0 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 50px; }
 .es-team-head { width: 100% !important; }
