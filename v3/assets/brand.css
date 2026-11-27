@@ -30,6 +30,28 @@ nav .framer-tbzm9c-container, nav .framer-tbzm9c-container > .framer-LQZpV { wid
 .es-wa-opt svg { color: #865543; flex: none; } .es-wa-opt-wa svg { color: #25d366; }
 .es-wa-opt:hover { background: #f5efe8; }
 @media (max-width: 809.98px) { .es-wa-wrap { right: 16px; bottom: 16px; } .es-wa { width: 54px; height: 54px; } .es-wa svg { width: 28px; height: 28px; } .es-wa-opt svg { width: 18px; height: 18px; } }
+/* home reviews: two rows of cards that keep moving, top right to left, bottom left to right (27 Nov) */
+.es-rv { grid-column: 1 / -1; min-width: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.es-rv-row { overflow: hidden; --rv-w: 400px; --rv-dur: 70s; }
+.es-rv-track { display: flex; width: max-content; animation: es-rv-rtl var(--rv-dur) linear infinite; will-change: transform; }
+.es-rv-ltr .es-rv-track { animation-name: es-rv-ltr; }
+.es-rv-row:hover .es-rv-track { animation-play-state: paused; }
+.es-rv-set { display: flex; gap: 10px; padding-right: 10px; }
+.es-rv-card { width: var(--rv-w); flex: none; display: flex; }
+.es-rv-card > div { width: 100% !important; height: auto !important; align-self: stretch !important; display: flex !important; flex-direction: column !important; justify-content: flex-start !important; }
+.es-rv-card .framer-iyx01 { flex: 1 0 auto !important; display: flex !important; flex-direction: column !important; }
+.es-rv-card .framer-1kjdxlj { flex: 1 0 auto !important; }
+@keyframes es-rv-rtl { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes es-rv-ltr { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+@media (max-width: 1199.98px) { .es-rv-row { --rv-w: 340px; --rv-dur: 60s; } }
+@media (max-width: 809.98px) { .es-rv-row { --rv-w: 236px; --rv-dur: 55s; } .es-rv { -webkit-mask-image: none; mask-image: none; gap: 8px; } .es-rv-set { gap: 8px; padding-right: 8px; }
+  .es-rv-card > div { padding: 14px !important; gap: 16px !important; }
+  .es-rv-card .framer-iyx01 { gap: 12px !important; }
+  .es-rv-card .framer-1kjdxlj p { font-size: 13px !important; line-height: 1.5 !important; }
+  .es-rv-card .framer-14zcoc4 { width: 38px !important; height: 38px !important; }
+  .es-rv-card .framer-DRilf > div { width: 14px !important; height: 14px !important; } }
+@media (prefers-reduced-motion: reduce) { .es-rv-track { animation: none; } .es-rv-row { overflow-x: auto; } }
 /* home hero on phones: the template's 100px blur layer eased a little (27 Nov) */
 @media (max-width: 809.98px) { .framer-1hmwb0w { -webkit-backdrop-filter: blur(70px) !important; backdrop-filter: blur(70px) !important; } }
 .es-team { width: 100%; display: flex; justify-content: center; padding: 80px 0; box-sizing: border-box; }
